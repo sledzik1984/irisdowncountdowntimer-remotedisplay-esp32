@@ -33,25 +33,25 @@
 #define DISPLAY_ADDRESS 0x70
 #define EEPROM_SIZE 1
 
-//#include <ETH.h>
 #include <WiFi.h>
-
-const char* ssid = "cma";
-const char* password =  "@@cmacma@@";
-
 #include "AsyncUDP.h"
 #include <Wire.h>
 // ESP-32 Gateway: use pin 32 for SDA and define in Adafruit_LEDBackpack.cpp
 // line 206: Wire.begin(32,16); as ethernet uses std pin 17 !!!
 // ESP-32 POE: no configuration change required
-//#include "Adafruit_LEDBackpack.h"
+#include "Adafruit_LEDBackpack.h"
 #include <EEPROM.h>
+
 
 // network vars
 bool ethConnected = false;
+bool goodHeader = true;
+
 AsyncUDP udp;
-//36701 port
-const unsigned int udpPort = 61003; // Port number used by CLOCK-8001
+// Porty 61003
+//36700
+
+const unsigned int udpPort = 36700;
 unsigned long udpLastPacketMillis = 0;
 const unsigned int udpTimeout = 3000;
 unsigned long udpTime = 0;      // Time remaining in seconds.
@@ -60,7 +60,7 @@ int udpId = 0;                  // id of the master unit.
 
 // LED display vars
 int ledBrightness = 15; // maxmimum brightness
-//Adafruit_7segment ledDisplay = Adafruit_7segment();
+Adafruit_7segment ledDisplay = Adafruit_7segment();
 
 // System vars
 int id = 0;                       // id of this unit (to be read from EEPROM)
@@ -75,9 +75,12 @@ unsigned long initPreviousMillis = 0;
 const int initIntervalMillis = 500;
 const int menuTimeout = 4000;
 unsigned long menuMillis = 0;
+const char* ssid = "cma";
+const char* password =  "@@cmacma@@";
+
 
 // Menu button.
-const int buttonPin = 34;
+const int buttonPin = 0;
 int buttonState = HIGH;
 int lastButtonState = HIGH;
 
@@ -93,24 +96,21 @@ opMode currentMode = Init;
 
 void WiFiEvent(WiFiEvent_t event) { // This event handler updates the connection status of ETH.
   switch (event) {
-    case SYSTEM_EVENT_WIFI_READY:
-      Serial.println("WiFi Started");
-      WiFi.setHostname("esp32-clock8001");
+    case SYSTEM_EVENT_ETH_START:
+      Serial.println("ETH Started");
+
       break;
-    case SYSTEM_EVENT_ETH_CONNECTED:
-      Serial.println("ETH Connected");
+    case SYSTEM_EVENT_STA_CONNECTED:
+      Serial.println("WIFI Connected");
+      ethConnected = true;
       break;
     case SYSTEM_EVENT_ETH_GOT_IP:
-      Serial.print("WiFi MAC: ");
+      Serial.print("ETH MAC: ");
       Serial.print(WiFi.macAddress());
       Serial.print(", IPv4: ");
       Serial.print(WiFi.localIP());
-      //if (ETH.fullDuplex()) {
-      //  Serial.print(", FULL_DUPLEX");
-      //}
-      //Serial.print(", ");
-      //Serial.print(ETH.linkSpeed());
-      //Serial.println("Mbps");
+      WiFi.setHostname("esp32-ethernet");
+
       ethConnected = true;
       break;
     case SYSTEM_EVENT_ETH_DISCONNECTED:
@@ -127,17 +127,23 @@ void WiFiEvent(WiFiEvent_t event) { // This event handler updates the connection
 void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives every incoming udp packet
   // Two checks to validate packet structure:
   // 1) Confirm packet length of 20.
-  if (packet.length() == 20) {
+  //Serial.println("PACKET RECEIVED!");
+  if (packet.length() == 3) { // Packet length has to be 3 bytes!
+
     // 2) Confirm packet header of 'IDCT:'
-    const char header[] = {'I', 'D', 'C', 'T', ':', '\0'};
-    bool goodHeader = true;
-    for (int i = 0; i < 5; i++) {
-      if (header[i] != packet.data()[i]) {
-        goodHeader = false;
-      }
-    }
-    if (goodHeader) {
+    //const char header[] = {'I','D','C','T',':','\0'}; //Not this protocol
+    goodHeader = true;
+    //Serial.print("Packet length: ");
+    //Serial.println(packet.length());
+    
+
+
+    
+
+    if (goodHeader == true) {
+      //Serial.println("Packet OK! Yummy!");
       // Get id which is a single hex character '0'-'9','A'-'F'
+      /*
       const char hexchar = packet.data()[12];
       udpId = (hexchar >= 'A') ? (hexchar - 'A' + 10) : (hexchar - '0'); //char must be uppercase
       //get packet time in seconds
@@ -152,7 +158,35 @@ void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives ever
       if (udpId == id) {
         udpLastPacketMillis = millis();
       }
+      */
+
+      const char hexchar = packet.data()[3];
+      //String hexchar = (const char*)packet.data();
+      //const char packetTime[] = {packet.data()[6], packet.data()[7], packet.data()[8], packet.data()[9], packet.data()[10], packet.data()[11], packet.data()[12], packet.data()[13], packet.data()[14], packet.data()[15], packet.data()[16], packet.data()[17], packet.data()[18], packet.data()[19], packet.data()[20],   '\0'};
+      const char packetTime[] = {packet.data()[6], packet.data()[7], packet.data()[8], '\0'};
+      
+      Serial.print("Byte 1 Minutes: ");
+      int bcd1 = (packet.data()[0], HEX);
+      Serial.print(packet.data()[0], HEX);
+      Serial.println("");
+      Serial.print("Byte 2 Seconds: ");
+      Serial.print(packet.data()[1], HEX);
+      Serial.println("");
+      Serial.print("Byte 3 COLOR: ");
+      
+      Serial.print(packet.data()[2], HEX);
+      Serial.println("----");
+      Serial.println("");
+
+     
+      
+
+      
     }
+  } else {
+    goodHeader = false;
+    Serial.println("Packet is not 3 bytes - not for me!");
+
   }
   //debug stuff
   /*
@@ -169,31 +203,25 @@ void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives ever
     Serial.print(", Length: ");
     Serial.print(packet.length());
     Serial.print(", Data: ");
-    Serial.write(packet.data(), packet.length());
-    Serial.println(); */
+    Serial.write(packet.data(), packet.length);
+    Serial.println();
+  */
 }
 
 void setup() {
   Serial.begin(115200);
-  // Init display:
-  /*
-    ledDisplay.begin(DISPLAY_ADDRESS);
-    ledDisplay.setBrightness(ledBrightness);
-  */
 
+  // Init display:
+  ledDisplay.begin(DISPLAY_ADDRESS);
+  ledDisplay.setBrightness(ledBrightness);
   // Read id from EEPROM, and set to 0 if out of bounds.
   EEPROM.begin(EEPROM_SIZE);
-  id = EEPROM.read(0); /*
+  id = EEPROM.read(0);
   if (id < 0 || id > 15) {
     id = 0;
     EEPROM.write(0, id);
     EEPROM.commit();
-  } */
-
-  id = 0;
-  EEPROM.write(0, id);
-  EEPROM.commit();
-
+  }
   Serial.println((String)"id: " + id);
   // Init eth with a random link-local address:
   randomSeed(analogRead(0));
@@ -201,8 +229,8 @@ void setup() {
   IPAddress gateway(169, 254, 1, 1);
   IPAddress subnet(255, 255, 0, 0);
   IPAddress dns(169, 254, 1, 1);
-  WiFi.mode(WIFI_STA);
   WiFi.onEvent(WiFiEvent);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
   while (WiFi.status() != WL_CONNECTED) {
@@ -210,10 +238,7 @@ void setup() {
     delay(1000);
   }
   Serial.println(WiFi.localIP());
-  WiFi.config(ip, gateway, subnet, dns);
-  ethConnected = true;
-
-
+  //WiFi.config(ip, gateway, subnet, dns);
   // Start udp listener.
   if (udp.listen(udpPort)) {
     Serial.print("UDP Listening on Port: ");
@@ -295,17 +320,11 @@ opMode GetMode() {
 
 void showMenu() {
   // Draw id:id
-
-  /*
-    ledDisplay.print(id, DEC);
-    ledDisplay.writeDigitRaw(0,4);  // i...
-    ledDisplay.writeDigitRaw(1,94); // .d..
-    ledDisplay.drawColon(true);
-    ledDisplay.writeDisplay();
-
-  */
-
-
+  ledDisplay.print(id, DEC);
+  ledDisplay.writeDigitRaw(0, 4); // i...
+  ledDisplay.writeDigitRaw(1, 94); // .d..
+  ledDisplay.drawColon(true);
+  ledDisplay.writeDisplay();
 }
 
 void showInit() {
@@ -318,14 +337,12 @@ void showInit() {
       showMenu();
       return;
     }
-    /*
-      ledDisplay.writeDigitRaw(0,0);
-      ledDisplay.writeDigitRaw(1,0);
-      ledDisplay.writeDigitRaw(3,0);
-      ledDisplay.writeDigitRaw(4,0);
-      ledDisplay.writeDigitRaw(initCounter,127);
-      ledDisplay.writeDisplay();
-    */
+    ledDisplay.writeDigitRaw(0, 0);
+    ledDisplay.writeDigitRaw(1, 0);
+    ledDisplay.writeDigitRaw(3, 0);
+    ledDisplay.writeDigitRaw(4, 0);
+    ledDisplay.writeDigitRaw(initCounter, 127);
+    ledDisplay.writeDisplay();
     initCounter += 1;
     if (initCounter == 2) {
       initCounter++;  // this jumps over the colon separating minutes and seconds
@@ -335,26 +352,22 @@ void showInit() {
 
 void showNoEth() {
   // Draw 'conn' to indicate we have a connection problem.
-  /*
-    ledDisplay.writeDigitRaw(0,88);
-    ledDisplay.writeDigitRaw(1,92);
-    ledDisplay.writeDigitRaw(3,84);
-    ledDisplay.writeDigitRaw(4,84);
-    ledDisplay.drawColon(false);
-    ledDisplay.writeDisplay();
-  */
+  ledDisplay.writeDigitRaw(0, 88);
+  ledDisplay.writeDigitRaw(1, 92);
+  ledDisplay.writeDigitRaw(3, 84);
+  ledDisplay.writeDigitRaw(4, 84);
+  ledDisplay.drawColon(false);
+  ledDisplay.writeDisplay();
 }
 
 void showNoRx() {
   // Draw '--:--' to indicate we are in a ready state, but no packets with that id are being detected.
-  /*
-    ledDisplay.writeDigitRaw(0,64);
-    ledDisplay.writeDigitRaw(1,64);
-    ledDisplay.writeDigitRaw(3,64);
-    ledDisplay.writeDigitRaw(4,64);
-    ledDisplay.drawColon(true);
-    ledDisplay.writeDisplay();
-  */
+  ledDisplay.writeDigitRaw(0, 64);
+  ledDisplay.writeDigitRaw(1, 64);
+  ledDisplay.writeDigitRaw(3, 64);
+  ledDisplay.writeDigitRaw(4, 64);
+  ledDisplay.drawColon(true);
+  ledDisplay.writeDisplay();
 }
 
 void showClock() {
@@ -364,46 +377,32 @@ void showClock() {
   unsigned long displayValue = 0;
   if (udpTime <= 5999) {
     displayValue = (m * 100) + s;
+    Serial.println(displayValue);
   } else {
     // Cant show the time in full so
     // just show the hours and minutes.
     int h = floor(m / 60);
     m = m % 60;
     displayValue = (h * 100) + m;
-
-
+    Serial.println(displayValue);
 
   }
-
-
-  /*
-    // Send the time value to the display.
-    //
-    
-    ledDisplay.print(displayValue, DEC);
-    ledDisplay.drawColon(true);
-    // Add leading zeroes at positions 1 & 3 '-0:0-' if required.
-    if (m == 0) {
-    ledDisplay.writeDigitNum(1,0);
+  // Send the time value to the display.
+  ledDisplay.print(displayValue, DEC);
+  ledDisplay.drawColon(true);
+  // Add leading zeroes at positions 1 & 3 '-0:0-' if required.
+  if (m == 0) {
+    ledDisplay.writeDigitNum(1, 0);
     if (s < 10) {
-      ledDisplay.writeDigitNum(3,0);
+      ledDisplay.writeDigitNum(3, 0);
     }
-    }
-    // If we are in overtime, show a -ve sign at position 0 while we can (<10mins).
-    if (udpTimeNegative && m < 10) {
-    ledDisplay.writeDigitRaw(0,64);
-    }
-    // Finally push out to the display.
-    ledDisplay.writeDisplay();
-    
-  */
-   //Tutej
-         Serial.println("ETH Stopped");
-         Serial.print(displayValue, DEC);
-
-
-
-  
+  }
+  // If we are in overtime, show a -ve sign at position 0 while we can (<10mins).
+  if (udpTimeNegative && m < 10) {
+    ledDisplay.writeDigitRaw(0, 64);
+  }
+  // Finally push out to the display.
+  ledDisplay.writeDisplay();
 }
 
 bool buttonPressed() {
@@ -421,6 +420,8 @@ void incId() {
   if (id > 15) {
     id = 0;
   }
+  Serial.print("NEW ID: ");
+  Serial.println(id);
   EEPROM.write(0, id);
   EEPROM.commit();
 }
