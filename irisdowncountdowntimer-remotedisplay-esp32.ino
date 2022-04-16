@@ -23,17 +23,29 @@
 
 #define ETH_CLK_MODE ETH_CLOCK_GPIO17_OUT
 #define ETH_PHY_POWER 12 // ESP32-GATEWAY 5 and ESP32-POE 12 !!!
-#define DISPLAY_ADDRESS 0x70
 #define EEPROM_SIZE 1
 
 #include <WiFi.h>
 #include "AsyncUDP.h"
 #include <Wire.h>
-// ESP-32 Gateway: use pin 32 for SDA and define in Adafruit_LEDBackpack.cpp
-// line 206: Wire.begin(32,16); as ethernet uses std pin 17 !!!
-// ESP-32 POE: no configuration change required
-#include "Adafruit_LEDBackpack.h"
+
+//#include "Adafruit_LEDBackpack.h"
 #include <EEPROM.h>
+
+#include <MD_Parola.h>
+#include <MD_MAX72xx.h>
+#include <SPI.h>
+// Uncomment according to your hardware type
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
+//#define HARDWARE_TYPE MD_MAX72XX::GENERIC_HW
+
+// Defining size, and output pins
+#define MAX_DEVICES 8
+#define CS_PIN 5
+
+MD_Parola Display = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
+
+
 
 
 // network vars
@@ -51,8 +63,8 @@ bool udpTimeNegative = false;   // If true, udpTime is time since 00:00.
 int udpId = 0;                  // id of the master unit.
 
 // LED display vars
-int ledBrightness = 15; // maxmimum brightness
-Adafruit_7segment ledDisplay = Adafruit_7segment();
+//int ledBrightness = 15; // maxmimum brightness
+//Adafruit_7segment ledDisplay = Adafruit_7segment();
 
 // System vars
 int id = 0;                       // id of this unit (to be read from EEPROM)
@@ -177,6 +189,17 @@ void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives ever
 
      Serial.println(color);
      
+     Display.setTextAlignment(PA_LEFT);
+
+     
+
+     Display.print("EVS: " + byte1string + ":" + byte2string);
+
+
+     //Add leading zeroes
+      
+  
+
 
       
 
@@ -211,17 +234,12 @@ void setup() {
   Serial.begin(115200);
 
   // Init display:
-  ledDisplay.begin(DISPLAY_ADDRESS);
-  ledDisplay.setBrightness(ledBrightness);
-  // Read id from EEPROM, and set to 0 if out of bounds.
-  EEPROM.begin(EEPROM_SIZE);
-  id = EEPROM.read(0);
-  if (id < 0 || id > 15) {
-    id = 0;
-    EEPROM.write(0, id);
-    EEPROM.commit();
-  }
-  Serial.println((String)"id: " + id);
+
+  Display.begin();
+  Display.setIntensity(0);
+  Display.displayClear();
+
+
   // Init eth with a random link-local address:
   randomSeed(analogRead(0));
   IPAddress ip(169, 254, random(1, 255), random(1, 255));
@@ -248,6 +266,33 @@ void setup() {
 }
 
 void loop() {
+  /*
+  //Display TESTS:
+   Display.setTextAlignment(PA_LEFT);
+  Display.print("ESP32");
+  delay(2000);
+  
+  Display.setTextAlignment(PA_CENTER);
+  Display.print("ESP32");
+  delay(2000);
+
+  Display.setTextAlignment(PA_RIGHT);
+  Display.print("ESP32");
+  delay(2000);
+
+  Display.setTextAlignment(PA_CENTER);
+  Display.setInvert(true);
+  Display.print("ESP32");
+  delay(2000);
+
+  Display.setInvert(false);
+  delay(2000);
+
+  // End display tests 
+  
+  */
+  
+  
   // Execute every 100ms.
   currentMillis = millis();
   if (currentMillis - previousMillis >= intervalMillis) {
@@ -319,11 +364,7 @@ opMode GetMode() {
 
 void showMenu() {
   // Draw id:id
-  ledDisplay.print(id, DEC);
-  ledDisplay.writeDigitRaw(0, 4); // i...
-  ledDisplay.writeDigitRaw(1, 94); // .d..
-  ledDisplay.drawColon(true);
-  ledDisplay.writeDisplay();
+  
 }
 
 void showInit() {
@@ -336,12 +377,12 @@ void showInit() {
       showMenu();
       return;
     }
-    ledDisplay.writeDigitRaw(0, 0);
-    ledDisplay.writeDigitRaw(1, 0);
-    ledDisplay.writeDigitRaw(3, 0);
-    ledDisplay.writeDigitRaw(4, 0);
-    ledDisplay.writeDigitRaw(initCounter, 127);
-    ledDisplay.writeDisplay();
+    //ledDisplay.writeDigitRaw(0, 0);
+    //ledDisplay.writeDigitRaw(1, 0);
+    //ledDisplay.writeDigitRaw(3, 0);
+    //ledDisplay.writeDigitRaw(4, 0);
+    //ledDisplay.writeDigitRaw(initCounter, 127);
+    //ledDisplay.writeDisplay();
     initCounter += 1;
     if (initCounter == 2) {
       initCounter++;  // this jumps over the colon separating minutes and seconds
@@ -351,22 +392,22 @@ void showInit() {
 
 void showNoEth() {
   // Draw 'conn' to indicate we have a connection problem.
-  ledDisplay.writeDigitRaw(0, 88);
-  ledDisplay.writeDigitRaw(1, 92);
-  ledDisplay.writeDigitRaw(3, 84);
-  ledDisplay.writeDigitRaw(4, 84);
-  ledDisplay.drawColon(false);
-  ledDisplay.writeDisplay();
+  //ledDisplay.writeDigitRaw(0, 88);
+  //ledDisplay.writeDigitRaw(1, 92);
+  //ledDisplay.writeDigitRaw(3, 84);
+  //ledDisplay.writeDigitRaw(4, 84);
+  //ledDisplay.drawColon(false);
+  //ledDisplay.writeDisplay();
 }
 
 void showNoRx() {
   // Draw '--:--' to indicate we are in a ready state, but no packets with that id are being detected.
-  ledDisplay.writeDigitRaw(0, 64);
-  ledDisplay.writeDigitRaw(1, 64);
-  ledDisplay.writeDigitRaw(3, 64);
-  ledDisplay.writeDigitRaw(4, 64);
-  ledDisplay.drawColon(true);
-  ledDisplay.writeDisplay();
+  //ledDisplay.writeDigitRaw(0, 64);
+  //ledDisplay.writeDigitRaw(1, 64);
+  //ledDisplay.writeDigitRaw(3, 64);
+  //ledDisplay.writeDigitRaw(4, 64);
+  //ledDisplay.drawColon(true);
+  //ledDisplay.writeDisplay();
 }
 
 void showClock() {
@@ -387,21 +428,11 @@ void showClock() {
 
   }
   // Send the time value to the display.
-  ledDisplay.print(displayValue, DEC);
-  ledDisplay.drawColon(true);
+  //ledDisplay.print(displayValue, DEC);
+  //ledDisplay.drawColon(true);
   // Add leading zeroes at positions 1 & 3 '-0:0-' if required.
-  if (m == 0) {
-    ledDisplay.writeDigitNum(1, 0);
-    if (s < 10) {
-      ledDisplay.writeDigitNum(3, 0);
-    }
-  }
-  // If we are in overtime, show a -ve sign at position 0 while we can (<10mins).
-  if (udpTimeNegative && m < 10) {
-    ledDisplay.writeDigitRaw(0, 64);
-  }
-  // Finally push out to the display.
-  ledDisplay.writeDisplay();
+
+
 }
 
 bool buttonPressed() {
@@ -423,10 +454,4 @@ void incId() {
   Serial.println(id);
   EEPROM.write(0, id);
   EEPROM.commit();
-}
-
-
-byte BcdToDec(byte bcd)
-{
-   return( ((bcd >> 4) * 10) + (bcd&0xF) );
 }
