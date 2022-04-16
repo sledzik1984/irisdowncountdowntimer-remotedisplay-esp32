@@ -1,31 +1,24 @@
 /*
-   Irisdown Countdown Timer : LED Display Remote for Olimex ESP32-GATEWAY/ESP32-POE
 
-   Listens for UDP packets on port 61003. Shows time on
-   Adafruit clock 4-digit 7-segment display.
+   Display for UDP Time protocol used by Interspace Industries CDEther Receiver, Irisdown Countdown Timer 2.0, Neodarque Stage Timer 2 and Clock-8001
+   https://www.interspaceind.com/shop-our-products/product/112-cdether-receiver/category_pathway-37.html
+   https://www.irisdown.co.uk/countdowntimer.html
+   https://www.neodarque.com/StageTimer
+   https://gitlab.com/Depili/clock-8001
+   
+   I am using that display with clock-8001 that sends the UDP time on two ports: 36700 and 36701
 
-   created 10/01/2019
-   by David Shepherd
-
-   http://http://www.irisdown.co.uk/countdowntimer.html
+  
+   Listens for UDP packets on port 36700. Shows time on:
+   1) Serial console
+   
+   Parts of code by David Shepherd
 
    Libraries required:
-     Adafruit GFX Library v1.5.7
-     Adafruit LED Backpack Library v1.1.6
 
    Board required:
      esp32 by Espressive Systems Board v1.0.4 (v1.0.0 has seriously unreliable I2C)
-
-   For ESP32-POE:
-     Connections:
-       ESP-32          LED Backpack
-       +5V             VCC
-       GND             GND
-       GPIO13/I2C-SDA  SDA
-       GPIO16/I2C-SCL  SCL
-     Settings:
-       #define ETH_PHY_POWER 12
-
+  
 */
 
 #define ETH_CLK_MODE ETH_CLOCK_GPIO17_OUT
@@ -48,8 +41,7 @@ bool ethConnected = false;
 bool goodHeader = true;
 
 AsyncUDP udp;
-// Porty 61003
-//36700
+
 
 const unsigned int udpPort = 36700;
 unsigned long udpLastPacketMillis = 0;
@@ -126,7 +118,7 @@ void WiFiEvent(WiFiEvent_t event) { // This event handler updates the connection
 
 void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives every incoming udp packet
   // Two checks to validate packet structure:
-  // 1) Confirm packet length of 20.
+  // 1) Confirm packet length of 3.
   //Serial.println("PACKET RECEIVED!");
   if (packet.length() == 3) { // Packet length has to be 3 bytes!
 
@@ -141,44 +133,51 @@ void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives ever
     
 
     if (goodHeader == true) {
+      
       //Serial.println("Packet OK! Yummy!");
-      // Get id which is a single hex character '0'-'9','A'-'F'
-      /*
-      const char hexchar = packet.data()[12];
-      udpId = (hexchar >= 'A') ? (hexchar - 'A' + 10) : (hexchar - '0'); //char must be uppercase
-      //get packet time in seconds
-      const char packetTime[] = {packet.data()[6], packet.data()[7], packet.data()[8], packet.data()[9], packet.data()[10], packet.data()[11], '\0'};
-      udpTime = atoi(packetTime);
-      //get packet time sign =/-
-      udpTimeNegative = false;
-      if (packet.data()[5] == '-') {
-        udpTimeNegative = true;
-      }
-      // If packet id matches our id we can reset udpLastPacketMillis.
-      if (udpId == id) {
-        udpLastPacketMillis = millis();
-      }
-      */
-
-      const char hexchar = packet.data()[3];
-      //String hexchar = (const char*)packet.data();
-      //const char packetTime[] = {packet.data()[6], packet.data()[7], packet.data()[8], packet.data()[9], packet.data()[10], packet.data()[11], packet.data()[12], packet.data()[13], packet.data()[14], packet.data()[15], packet.data()[16], packet.data()[17], packet.data()[18], packet.data()[19], packet.data()[20],   '\0'};
-      const char packetTime[] = {packet.data()[6], packet.data()[7], packet.data()[8], '\0'};
-      
+  
       Serial.print("Byte 1 Minutes: ");
-      int bcd1 = (packet.data()[0], HEX);
-      Serial.print(packet.data()[0], HEX);
-      Serial.println("");
-      Serial.print("Byte 2 Seconds: ");
-      Serial.print(packet.data()[1], HEX);
-      Serial.println("");
-      Serial.print("Byte 3 COLOR: ");
-      
-      Serial.print(packet.data()[2], HEX);
-      Serial.println("----");
-      Serial.println("");
 
+      byte byte1[2];
+      
+      byte1[0] = packet.data()[0] >> 4;  //
+      byte1[1] = packet.data()[0] & 0xf;
+
+      //newbyte = ((oldbyte << 4) & 0xf0) | ((oldbyte >> 4) & 0x0f);
+
+      String byte1string=String(byte1[1]) + String(byte1[0]);
+
+      char charbuf1[50];
+      byte1string.toCharArray(charbuf1, 50) ;
+      int minutes = atoi(charbuf1);
+      Serial.println(minutes);
+      
+      
+      Serial.print("Byte 2 Seconds: ");
+
+      byte byte2[2];
+      
+      byte2[0] = packet.data()[1] >> 4;  //
+      byte2[1] = packet.data()[1] & 0xf;
+
+      String byte2string=String(byte2[1]) + String(byte2[0]);
+
+      char charbuf2[50];
+      byte2string.toCharArray(charbuf2, 50) ;
+      int seconds = atoi(charbuf2);
+      Serial.println(seconds);
+
+      Serial.print("Byte 3 COLOR: ");
+
+      String byte3string=String(packet.data()[2], HEX);
+      
+     char charbuf3[50];
+     byte3string.toCharArray(charbuf3, 50);
+     int color = atoi(charbuf3);
+
+     Serial.println(color);
      
+
       
 
       
@@ -424,4 +423,10 @@ void incId() {
   Serial.println(id);
   EEPROM.write(0, id);
   EEPROM.commit();
+}
+
+
+byte BcdToDec(byte bcd)
+{
+   return( ((bcd >> 4) * 10) + (bcd&0xF) );
 }
