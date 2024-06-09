@@ -193,7 +193,7 @@ void udpPacketEvent(AsyncUDPPacket packet) { // This event handler receives ever
 
      
 
-     Display.print("EVS: " + byte1string + ":" + byte2string);
+     Display.print("VIDEO: " + byte1string + ":" + byte2string);
 
 
      //Add leading zeroes
